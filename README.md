@@ -1,24 +1,70 @@
-# Smart Goal Planner 💰
-A personal savings tracker app to help you achieve your financial goals. Set targets, track progress, and watch your savings grow!
+# Smart Goal Planner 🎯
 
-## Features ✨
+## Table of Contents
+1. [Project Description](#project-description)
+2. [Features](#features)
+3. [Technical Specifications](#technical-specifications)
+4. [Setup Instructions](#setup-instructions)
+5. [API Configuration](#api-configuration)
+6. [Application Usage](#application-usage)
+7. [Testing](#testing)
+8. [License](#license)
+9. [Acknowledgements](#acknowledgements)
 
-- **Create savings goals** with targets and deadlines
-- **Track deposits** toward each goal
-- **Visual progress bars** show your savings journey
-- **Smart status indicators** (Completed, Active, Overdue)
-- **Responsive design** works on all devices
+## Project Description
+A React-based financial management application that enables users to:
+- Set measurable savings goals
+- Track progress with visual indicators
+- Manage deposits across multiple objectives
+- Receive deadline-based status alerts
 
-## Tech Stack 🛠️
+## Features
+| Feature | Implementation Details |
+|---------|-----------------------|
+| Goal Creation | Form with validation (name, amount, category, deadline) |
+| Progress Tracking | Dynamic progress bars with percentage calculation |
+| Status System | Color-coded indicators (Completed/Active/Warning/Overdue) |
+| Data Persistence | REST API via json-server |
+| Responsive Design | Mobile-first CSS with media queries |
 
-- **Frontend**: React.js
-- **Styling**: Pure CSS (no frameworks)
-- **Data Mocking**: json-server
-- **Build Tool**: Vite
+## Technical Specifications
+### Frontend
+- **Framework**: React 18
+- **State Management**: React Hooks (useState, useEffect)
+- **Styling**: Tailwind
+- **HTTP Client**: Axios
 
-## Installation ⚙️
+### Backend Simulation
+- **Mock API**: json-server
+- **Data Structure**:
+  ```json
+  {
+    "goals": [
+      {
+        "id": "uuid",
+        "name": "String",
+        "targetAmount": "Number",
+        "savedAmount": "Number",
+        "category": "String",
+        "deadline": "Date",
+        "createdAt": "Timestamp"
+      }
+    ]
+  }
 
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/yourusername/smart-goal-planner.git
+## Installation
+  ** Install dependencies-npm install **
+    ** Environment setup- cp .env.example .env**
 
+  
+  ## Running the Application
+  ** Start developers server-npm run dev **
+    ** In separate terminal launch mock API- npm run server**
+    ** Access aplaication **
+
+    
+## Testing
+  ** Test-npm Test **
+
+This project is not licensed.
+    
