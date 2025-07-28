@@ -14,53 +14,12 @@ export default function GoalForm({ onAddGoal }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Fallback to localStorage if backend fails
-  const addGoalLocally = (goalData) => {
-    try {
-      const existingGoals = JSON.parse(localStorage.getItem('goals') || '[]');
-      const newGoals = [...existingGoals, goalData];
-      localStorage.setItem('goals', JSON.stringify(newGoals));
-      return goalData;
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-      throw error;
-    }
-  };
-
-  const submitGoal = async (goalData, retryCount = 0) => {
-    try {
-      // First try to check if server is responsive
-      await axios.get(`${API_BASE_URL}/goals`, { timeout: 5000 });
-      
-      // If server responds, try to post
-      const response = await axios.post(`${API_BASE_URL}/goals`, goalData, {
-        timeout: 10000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      return { data: response.data, source: 'api' };
-    } catch (error) {
-      console.error(`API attempt ${retryCount + 1} failed:`, error.message);
-      
-      // If it's a 500 error or connection issue, try localStorage fallback
-      if (error.response?.status === 500 || error.code === 'ECONNABORTED' || !error.response) {
-        if (retryCount < 1) {
-          console.log(`Retrying API call... attempt ${retryCount + 2}`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          return submitGoal(goalData, retryCount + 1);
-        } else {
-          console.log('API failed, using localStorage fallback');
-          const savedGoal = addGoalLocally(goalData);
-          return { data: savedGoal, source: 'localStorage' };
-        }
-      }
-      throw error;
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent double submission
+    if (isSubmitting) return;
+    
     setIsSubmitting(true);
     setError('');
     
@@ -92,28 +51,55 @@ export default function GoalForm({ onAddGoal }) {
 
       console.log('Submitting goal:', goalToAdd);
       
-      // Try to submit with fallback
-      const result = await submitGoal(goalToAdd);
+      let success = false;
       
-      // Notify parent component
-      onAddGoal(result.data);
-      
-      // Show success message based on source
-      if (result.source === 'localStorage') {
-        setError('Goal saved locally. Will sync when server is available.');
-        setTimeout(() => setError(''), 3000);
+      // Try API first with single attempt
+      try {
+        const response = await axios.post(`${API_BASE_URL}/goals`, goalToAdd, {
+          timeout: 8000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // Notify parent component with API response
+        onAddGoal(response.data);
+        success = true;
+        console.log('Goal added successfully via API');
+        
+      } catch (apiError) {
+        console.error('API failed:', apiError.message);
+        
+        // Fallback to localStorage
+        try {
+          const existingGoals = JSON.parse(localStorage.getItem('goals') || '[]');
+          const newGoals = [...existingGoals, goalToAdd];
+          localStorage.setItem('goals', JSON.stringify(newGoals));
+          
+          // Notify parent component with local data
+          onAddGoal(goalToAdd);
+          success = true;
+          
+          setError('Goal saved locally. Server is temporarily unavailable.');
+          setTimeout(() => setError(''), 4000);
+          console.log('Goal added successfully via localStorage');
+          
+        } catch (localError) {
+          console.error('localStorage failed:', localError);
+          throw new Error('Failed to save goal. Please try again.');
+        }
       }
       
-      // Reset form
-      setNewGoal({
-        name: '',
-        targetAmount: '',
-        category: '',
-        deadline: '',
-        initialDeposit: ''
-      });
-
-      console.log(`Goal added successfully via ${result.source}`);
+      // Reset form only if successful
+      if (success) {
+        setNewGoal({
+          name: '',
+          targetAmount: '',
+          category: '',
+          deadline: '',
+          initialDeposit: ''
+        });
+      }
 
     } catch (error) {
       console.error('Error adding goal:', error);
@@ -122,12 +108,8 @@ export default function GoalForm({ onAddGoal }) {
       
       if (error.message.includes('required') || error.message.includes('greater than')) {
         errorMessage = error.message;
-      } else if (error.response?.status === 500) {
-        errorMessage += 'Server error. Please try again later.';
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage += 'Connection timeout. Please check your internet.';
-      } else if (error.response?.status === 404) {
-        errorMessage += 'API not found. Please contact support.';
+      } else if (error.message.includes('Failed to save goal')) {
+        errorMessage = error.message;
       } else {
         errorMessage += 'Please try again.';
       }
