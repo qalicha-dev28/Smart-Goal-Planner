@@ -14,30 +14,46 @@ export default function GoalForm({ onAddGoal }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const wakeUpServer = async () => {
+  // Fallback to localStorage if backend fails
+  const addGoalLocally = (goalData) => {
     try {
-      await axios.get(`${API_BASE_URL}/goals`, { timeout: 10000 });
-      return true;
+      const existingGoals = JSON.parse(localStorage.getItem('goals') || '[]');
+      const newGoals = [...existingGoals, goalData];
+      localStorage.setItem('goals', JSON.stringify(newGoals));
+      return goalData;
     } catch (error) {
-      console.warn('Server wake-up failed:', error);
-      return false;
+      console.error('Failed to save to localStorage:', error);
+      throw error;
     }
   };
 
   const submitGoal = async (goalData, retryCount = 0) => {
     try {
+      // First try to check if server is responsive
+      await axios.get(`${API_BASE_URL}/goals`, { timeout: 5000 });
+      
+      // If server responds, try to post
       const response = await axios.post(`${API_BASE_URL}/goals`, goalData, {
-        timeout: 15000,
+        timeout: 10000,
         headers: {
           'Content-Type': 'application/json'
         }
       });
-      return response;
+      return { data: response.data, source: 'api' };
     } catch (error) {
-      if (retryCount < 2 && (error.code === 'ECONNABORTED' || error.response?.status >= 500)) {
-        console.log(`Retry attempt ${retryCount + 1}`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return submitGoal(goalData, retryCount + 1);
+      console.error(`API attempt ${retryCount + 1} failed:`, error.message);
+      
+      // If it's a 500 error or connection issue, try localStorage fallback
+      if (error.response?.status === 500 || error.code === 'ECONNABORTED' || !error.response) {
+        if (retryCount < 1) {
+          console.log(`Retrying API call... attempt ${retryCount + 2}`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return submitGoal(goalData, retryCount + 1);
+        } else {
+          console.log('API failed, using localStorage fallback');
+          const savedGoal = addGoalLocally(goalData);
+          return { data: savedGoal, source: 'localStorage' };
+        }
       }
       throw error;
     }
@@ -49,7 +65,21 @@ export default function GoalForm({ onAddGoal }) {
     setError('');
     
     try {
-      // Format the data for json-server
+      // Validate inputs first
+      if (!newGoal.name.trim()) {
+        throw new Error('Goal name is required');
+      }
+      if (!newGoal.targetAmount || Number(newGoal.targetAmount) <= 0) {
+        throw new Error('Target amount must be greater than 0');
+      }
+      if (!newGoal.category) {
+        throw new Error('Category is required');
+      }
+      if (!newGoal.deadline) {
+        throw new Error('Deadline is required');
+      }
+
+      // Format the data
       const goalToAdd = {
         id: Date.now().toString(),
         name: newGoal.name.trim(),
@@ -60,21 +90,19 @@ export default function GoalForm({ onAddGoal }) {
         createdAt: new Date().toISOString().split('T')[0] 
       };
 
-      // Validate data
-      if (!goalToAdd.name || !goalToAdd.category || !goalToAdd.deadline || goalToAdd.targetAmount <= 0) {
-        throw new Error('Please fill in all required fields correctly');
-      }
-
-      // Try to wake up server first
-      console.log('Waking up server...');
-      await wakeUpServer();
-
-      // API call to add the goal with retry logic
       console.log('Submitting goal:', goalToAdd);
-      const response = await submitGoal(goalToAdd);
+      
+      // Try to submit with fallback
+      const result = await submitGoal(goalToAdd);
       
       // Notify parent component
-      onAddGoal(response.data);
+      onAddGoal(result.data);
+      
+      // Show success message based on source
+      if (result.source === 'localStorage') {
+        setError('Goal saved locally. Will sync when server is available.');
+        setTimeout(() => setError(''), 3000);
+      }
       
       // Reset form
       setNewGoal({
@@ -85,30 +113,23 @@ export default function GoalForm({ onAddGoal }) {
         initialDeposit: ''
       });
 
-      setError('');
-      console.log('Goal added successfully');
+      console.log(`Goal added successfully via ${result.source}`);
 
     } catch (error) {
       console.error('Error adding goal:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        code: error.code
-      });
       
-      let errorMessage = 'Failed to add goal. ';
+      let errorMessage = 'Failed to add goal: ';
       
-      if (error.response?.status === 500) {
-        errorMessage += 'Server error. The backend may be starting up. Please wait a moment and try again.';
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage += 'Request timed out. Please check your connection and try again.';
-      } else if (error.response?.status === 404) {
-        errorMessage += 'API endpoint not found. Please check the backend URL.';
-      } else if (error.message.includes('fill in all required fields')) {
+      if (error.message.includes('required') || error.message.includes('greater than')) {
         errorMessage = error.message;
+      } else if (error.response?.status === 500) {
+        errorMessage += 'Server error. Please try again later.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage += 'Connection timeout. Please check your internet.';
+      } else if (error.response?.status === 404) {
+        errorMessage += 'API not found. Please contact support.';
       } else {
-        errorMessage += 'Please try again in a few moments.';
+        errorMessage += 'Please try again.';
       }
       
       setError(errorMessage);
@@ -123,12 +144,12 @@ export default function GoalForm({ onAddGoal }) {
       
       {error && (
         <div style={{ 
-          color: 'red', 
+          color: error.includes('saved locally') ? '#ff9800' : 'red', 
           marginBottom: '1rem', 
           padding: '0.5rem', 
-          border: '1px solid red', 
+          border: `1px solid ${error.includes('saved locally') ? '#ff9800' : 'red'}`, 
           borderRadius: '4px',
-          backgroundColor: '#ffebee'
+          backgroundColor: error.includes('saved locally') ? '#fff3e0' : '#ffebee'
         }}>
           {error}
         </div>
@@ -140,7 +161,7 @@ export default function GoalForm({ onAddGoal }) {
           type="text"
           value={newGoal.name}
           onChange={(e) => setNewGoal({...newGoal, name: e.target.value})}
-          placeholder="Add a goal"
+          placeholder="Enter goal name"
           required
           disabled={isSubmitting}
         />
@@ -152,9 +173,10 @@ export default function GoalForm({ onAddGoal }) {
           type="number"
           value={newGoal.targetAmount}
           onChange={(e) => setNewGoal({...newGoal, targetAmount: e.target.value})}
-          placeholder="Target amount"
+          placeholder="Enter target amount"
           required
           min="1"
+          step="0.01"
           disabled={isSubmitting}
         />
       </div>
@@ -196,6 +218,7 @@ export default function GoalForm({ onAddGoal }) {
           onChange={(e) => setNewGoal({...newGoal, initialDeposit: e.target.value})}
           placeholder="Optional initial deposit"
           min="0"
+          step="0.01"
           disabled={isSubmitting}
         />
       </div>
