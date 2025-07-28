@@ -11,14 +11,48 @@ export default function GoalForm({ onAddGoal }) {
     deadline: '',
     initialDeposit: ''  
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const wakeUpServer = async () => {
+    try {
+      await axios.get(`${API_BASE_URL}/goals`, { timeout: 10000 });
+      return true;
+    } catch (error) {
+      console.warn('Server wake-up failed:', error);
+      return false;
+    }
+  };
+
+  const submitGoal = async (goalData, retryCount = 0) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/goals`, goalData, {
+        timeout: 15000,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      return response;
+    } catch (error) {
+      if (retryCount < 2 && (error.code === 'ECONNABORTED' || error.response?.status >= 500)) {
+        console.log(`Retry attempt ${retryCount + 1}`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return submitGoal(goalData, retryCount + 1);
+      }
+      throw error;
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    setError('');
     
     try {
       // Format the data for json-server
       const goalToAdd = {
-        name: newGoal.name,
+        id: Date.now().toString(),
+        name: newGoal.name.trim(),
         category: newGoal.category,
         deadline: newGoal.deadline,
         targetAmount: Number(newGoal.targetAmount),
@@ -26,8 +60,18 @@ export default function GoalForm({ onAddGoal }) {
         createdAt: new Date().toISOString().split('T')[0] 
       };
 
-      // API call to add the goal
-      const response = await axios.post(`${API_BASE_URL}/goals`, goalToAdd);
+      // Validate data
+      if (!goalToAdd.name || !goalToAdd.category || !goalToAdd.deadline || goalToAdd.targetAmount <= 0) {
+        throw new Error('Please fill in all required fields correctly');
+      }
+
+      // Try to wake up server first
+      console.log('Waking up server...');
+      await wakeUpServer();
+
+      // API call to add the goal with retry logic
+      console.log('Submitting goal:', goalToAdd);
+      const response = await submitGoal(goalToAdd);
       
       // Notify parent component
       onAddGoal(response.data);
@@ -41,16 +85,54 @@ export default function GoalForm({ onAddGoal }) {
         initialDeposit: ''
       });
 
+      setError('');
+      console.log('Goal added successfully');
+
     } catch (error) {
       console.error('Error adding goal:', error);
-      console.error('Error response:', error.response?.data);
-      alert('Failed to add goal. Please try again.');
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        code: error.code
+      });
+      
+      let errorMessage = 'Failed to add goal. ';
+      
+      if (error.response?.status === 500) {
+        errorMessage += 'Server error. The backend may be starting up. Please wait a moment and try again.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage += 'Request timed out. Please check your connection and try again.';
+      } else if (error.response?.status === 404) {
+        errorMessage += 'API endpoint not found. Please check the backend URL.';
+      } else if (error.message.includes('fill in all required fields')) {
+        errorMessage = error.message;
+      } else {
+        errorMessage += 'Please try again in a few moments.';
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <form className="goal-form" onSubmit={handleSubmit}>
       <h2>Add New Goal</h2>
+      
+      {error && (
+        <div style={{ 
+          color: 'red', 
+          marginBottom: '1rem', 
+          padding: '0.5rem', 
+          border: '1px solid red', 
+          borderRadius: '4px',
+          backgroundColor: '#ffebee'
+        }}>
+          {error}
+        </div>
+      )}
       
       <div className="form-group">
         <label>Goal Name:</label>
@@ -60,6 +142,7 @@ export default function GoalForm({ onAddGoal }) {
           onChange={(e) => setNewGoal({...newGoal, name: e.target.value})}
           placeholder="Add a goal"
           required
+          disabled={isSubmitting}
         />
       </div>
       
@@ -72,6 +155,7 @@ export default function GoalForm({ onAddGoal }) {
           placeholder="Target amount"
           required
           min="1"
+          disabled={isSubmitting}
         />
       </div>
      
@@ -81,6 +165,7 @@ export default function GoalForm({ onAddGoal }) {
           value={newGoal.category}
           onChange={(e) => setNewGoal({...newGoal, category: e.target.value})}
           required
+          disabled={isSubmitting}
         >
           <option value="">Select a category</option>
           <option value="Travel">Travel</option>
@@ -98,11 +183,26 @@ export default function GoalForm({ onAddGoal }) {
           value={newGoal.deadline}
           onChange={(e) => setNewGoal({...newGoal, deadline: e.target.value})}
           required
-          min={new Date().toISOString().split('T')[0]} // No past dates
+          min={new Date().toISOString().split('T')[0]}
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Initial Deposit ($):</label>
+        <input
+          type="number"
+          value={newGoal.initialDeposit}
+          onChange={(e) => setNewGoal({...newGoal, initialDeposit: e.target.value})}
+          placeholder="Optional initial deposit"
+          min="0"
+          disabled={isSubmitting}
         />
       </div>
       
-      <button type="submit">Add Goal</button>
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Adding Goal...' : 'Add Goal'}
+      </button>
     </form>
   );
 }
