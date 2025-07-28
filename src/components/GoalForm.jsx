@@ -43,6 +43,8 @@ export default function GoalForm({ onAddGoal }) {
 
     } catch (error) {
       console.error('Error adding goal:', error);
+      console.error('Error response:', error.response?.data);
+      alert('Failed to add goal. Please try again.');
     }
   };
 
