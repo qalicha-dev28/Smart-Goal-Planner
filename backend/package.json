@@ -1,0 +1,12 @@
+{
+  "name": "smart-goal-planner-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "json-server --watch db.json --port $PORT --host 0.0.0.0",
+    "dev": "json-server --watch db.json --port 3001"
+  },
+  "dependencies": {
+    "json-server": "^1.0.0-beta.3"
+  }
+}

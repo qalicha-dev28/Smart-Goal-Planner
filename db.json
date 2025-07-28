@@ -62,6 +62,24 @@
       "targetAmount": 1000000000,
       "savedAmount": 0,
       "createdAt": "2025-07-20"
+    },
+    {
+      "id": "6d3d",
+      "name": "Travel to Chuka",
+      "category": "Travel",
+      "deadline": "2025-07-21",
+      "targetAmount": 700,
+      "savedAmount": 700,
+      "createdAt": "2025-07-20"
+    },
+    {
+      "id": "6d3d",
+      "name": "Travel to Chuka",
+      "category": "Travel",
+      "deadline": "2025-07-21",
+      "targetAmount": 700,
+      "savedAmount": 0,
+      "createdAt": "2025-07-20"
     }
   ]
 }

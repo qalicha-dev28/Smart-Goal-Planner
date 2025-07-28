@@ -6,6 +6,8 @@ import DepositForm from './components/DepositForm';
 import Overview from './components/Overview';
 import './App.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 function App() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,7 +15,7 @@ function App() {
   useEffect(() => {
     const fetchGoals = async () => {
       try {
-        const response = await axios.get('http://localhost:3001/goals');
+        const response = await axios.get(`${API_BASE_URL}/goals`);
         setGoals(response.data);
       } catch (error) {
         console.error('Error fetching goals:', error);
@@ -26,7 +28,7 @@ function App() {
 
   const addGoal = async (newGoal) => {
     try {
-      const response = await axios.post('http://localhost:3001/goals', {
+      const response = await axios.post(`${API_BASE_URL}/goals`, {
         ...newGoal,
         savedAmount: 0
       });
@@ -38,7 +40,7 @@ function App() {
 
   const updateGoal = async (id, updatedGoal) => {
     try {
-      await axios.put(`http://localhost:3001/goals/${id}`, updatedGoal);
+      await axios.put(`${API_BASE_URL}/goals/${id}`, updatedGoal);
       setGoals(goals.map(goal => goal.id === id ? updatedGoal : goal));
     } catch (error) {
       console.error('Error updating goal:', error);
@@ -47,7 +49,7 @@ function App() {
 
   const deleteGoal = async (id) => {
     try {
-      await axios.delete(`http://localhost:3001/goals/${id}`);
+      await axios.delete(`${API_BASE_URL}/goals/${id}`);
       setGoals(goals.filter(goal => goal.id !== id));
     } catch (error) {
       console.error('Error deleting goal:', error);
@@ -56,7 +58,7 @@ function App() {
 
   const makeDeposit = async (id, amount) => {
     try {
-      const response = await axios.patch(`http://localhost:3001/goals/${id}`, {
+      const response = await axios.patch(`${API_BASE_URL}/goals/${id}`, {
         savedAmount: goals.find(g => g.id === id).savedAmount + Number(amount)
       });
       setGoals(goals.map(goal => goal.id === id ? response.data : goal));
