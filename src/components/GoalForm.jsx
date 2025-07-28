@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 export default function GoalForm({ onAddGoal }) {
   const [newGoal, setNewGoal] = useState({
     name: '',
@@ -25,7 +27,7 @@ export default function GoalForm({ onAddGoal }) {
       };
 
       // API call to add the goal
-      const response = await axios.post('http://localhost:3001/goals', goalToAdd);
+      const response = await axios.post(`${API_BASE_URL}/goals`, goalToAdd);
       
       // Notify parent component
       onAddGoal(response.data);
